@@ -1,1 +1,13 @@
 .idea
+
+# 0_pre 构建产物与运行输出
+# 注意：given/ 下是课程提供、无源码可重建的预编译文件，仍保留追踪
+0_pre/*.o
+0_pre/bootblock
+0_pre/shell
+0_pre/image
+0_pre/image.lock
+0_pre/serial.out
+0_pre/bochsout.txt
+0_pre/*~
+0_pre/*.bak
