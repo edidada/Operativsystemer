@@ -47,11 +47,16 @@ enum {
   PAGE_TABLE_SIZE = (1024 * 4096 - 1) /* size of a page table in bytes */
 };
 
-/* TODO: Structure of an entry in the page map */
+/* Structure of an entry in the page map */
 typedef struct {
-	uint32_t	swap_loc;
-	uint32_t	vaddr;
-	// Fill in ...
+	uint32_t	swap_loc;   /* sector of this page's backing store on disk */
+	uint32_t	vaddr;      /* virtual address currently mapped here */
+	uint32_t *	page_directory; /* directory holding the pte for vaddr */
+	uint32_t	mode;       /* page table entry flag bits (without PE_P) */
+	uint32_t	paged_in;   /* resident in physical memory */
+	uint32_t	pinned;     /* must never be swapped out */
+	uint32_t	in_use;     /* this page map slot is claimed */
+	uint32_t	dirty;      /* modified since it was swapped in */
 } page_map_entry_t;
 
 

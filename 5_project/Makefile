@@ -13,6 +13,9 @@ CCOPTS = -Wall -g -c -m32 -fno-builtin -fno-stack-protector \
 
 # Linker flags
 LDOPTS = -nostdlib -melf_i386
+# -N (--omagic): single LOAD segment; modern ld otherwise emits several
+# segments which trips up createimage ("memory conflict")
+LDOPTS += -N
 
 # Add your user program here:
 USER_PROGRAMS =	
@@ -49,7 +52,10 @@ kernel: $(KERNELOBJ) $(KERNEL)
 	$(LD) $(LDOPTS) -Ttext $(KERNEL_LOCATION) -o $@ $^
 	objcopy $@ $@ -G kernel_start
 
-entry.o: entry.S
+entry.o: entry.S asmsyms.h
+	$(CC) $(CCOPTS) -x assembler-with-cpp -c $< -o $@
+
+dispatch.o: dispatch.S asmsyms.h
 	$(CC) $(CCOPTS) -x assembler-with-cpp -c $< -o $@
 
 # The processes
