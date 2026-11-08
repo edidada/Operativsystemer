@@ -50,7 +50,9 @@ CCOPTS = -Wall -O1 -c -fno-builtin -fno-stack-protector -fno-defer-pop \
 #-Ttext X:				Use X as the starting address for the text segment of the output 
 #						file.
 
-LDOPTS = -melf_i386 -nostartfiles -nostdlib -N -Ttext
+# -nostartfiles was dropped here: it is a gcc option, and modern ld
+# rejects unknown single-dash options
+LDOPTS = -melf_i386 -nostdlib -N -Ttext
 
 # Add your user program here:
 USER_PROGRAMS	=	
