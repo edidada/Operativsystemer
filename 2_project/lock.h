@@ -6,11 +6,16 @@
 #ifndef LOCK_H
 #define LOCK_H
 
+#include "queue.h"
+
 typedef struct {
     enum {
         UNLOCKED,
         LOCKED,
     } status;
+    /* Tasks waiting for the lock, kept in FIFO order so that lock handover
+     * is fair (the first waiter always gets the lock next) */
+    node_t waiters;
 } lock_t;
 
 void lock_init(lock_t *);

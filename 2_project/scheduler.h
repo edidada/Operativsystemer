@@ -8,6 +8,12 @@
 
 #include "common.h"
 #include "kernel.h"
+#include "queue.h"
+
+// Queue of tasks that are ready to run, and queue of generically blocked
+// tasks (lock.c uses per-lock waiter queues for FIFO fairness)
+extern node_t ready_queue;
+extern node_t blocked_queue;
 
 // Number of times scheduler() was called
 extern int scheduler_count;

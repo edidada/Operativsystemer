@@ -38,6 +38,9 @@ CFLAGS += -DPROC3_ADDR=$(PROC3_ADDR)
 # Don't use the standard startup files or libraries
 LDFLAGS += -nostdlib
 LDFLAGS += -melf_i386
+# -N (--omagic) turns off page alignment and produces a single LOAD segment
+# (modern ld otherwise emits several segments, which trips up createimage)
+LDFLAGS += -N
 # Specify a location on a per-target basis
 LDFLAGS += -Ttext
 
