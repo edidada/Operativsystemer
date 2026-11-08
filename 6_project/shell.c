@@ -9,12 +9,12 @@
 
 #ifdef FAKE
 #define START main
-#include "fs.h"
 #include <stdlib.h>
 #else
 #define START _start
 #include "syslib.h"
 #endif
+#include "fs.h"
 
 char line[SIZEX+1];
 char *argv[SIZEX];
