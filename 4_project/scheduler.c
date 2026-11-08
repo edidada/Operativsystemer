@@ -55,7 +55,11 @@ static void try_wake() {
         if (now >= sleeper->sleep_until) {
             // Remove from sleep list
             ASSERT(sleeper == (pcb_t*) queue_get(&sleep_queue));
-            
+
+            // Killed-while-sleeping tasks are not woken up
+            if (EXITED == sleeper->status)
+                continue;
+
             // Mark as awake
             sleeper->status = READY;
             
@@ -132,6 +136,10 @@ void scheduler() {
         // Select the front of the ready queue
         chosen_process = (pcb_t *)queue_get(&ready_queue);
 
+        // Killed zombies never run again
+        if (EXITED == chosen_process->status)
+            continue;
+
         if (choice >= chosen_process->priority) {
             choice -= chosen_process->priority;
             queue_put(&ready_queue, (node_t*) chosen_process );
@@ -167,6 +175,8 @@ void do_yield() {
 void do_exit() {
     enter_critical();
     current_running->status = EXITED;
+    /* Wake any process blocked in do_wait() for our pid */
+    notify_waiters(current_running->pid);
     scheduler_entry();
     // No need for leave_critical() since scheduler_entry() never returns
 }

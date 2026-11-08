@@ -75,6 +75,10 @@ void do_exit(void);
 // Return the current task's pid
 pid_t do_getpid(void);
 
+// Wake every process blocked in do_wait() for the given pid (kernel.c provides
+// the implementation together with the wait queues)
+void notify_waiters(pid_t pid);
+
 // Return the current task's priority
 priority_t do_getpriority(void);
 

@@ -40,6 +40,9 @@ CFLAGS += -g
 LDFLAGS += -melf_i386
 # Don't use the standard startup files or libraries
 LDFLAGS += -nostdlib
+# -N (--omagic): single LOAD segment; modern ld otherwise emits several
+# segments which trips up createimage ("memory conflict")
+LDFLAGS += -N
 # Specify a location on a per-target basis
 LDFLAGS += -Ttext
 

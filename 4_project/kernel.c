@@ -16,6 +16,11 @@
 
 pcb_t pcb[NUM_PCBS];
 
+/* Positively one wait queue per pid: tasks blocked in do_wait() park here
+ * until the target process exits (via do_exit() accounted in do_wait, or
+ * do_kill()) */
+static node_t wait_queues[NUM_PCBS];
+
 // This is the system call table, used in interrupt.c
 int (*syscall[NUM_SYSCALLS]) ();
 
@@ -60,6 +65,8 @@ void _start(void) {
 
     queue_init(&sleep_queue);
     queue_init(&ready_queue);
+    for (i = 0; i < NUM_PCBS; ++i)
+        queue_init(&wait_queues[i]);
     current_running = &garbage_registers;
 
     total_ready_priority = 0;
@@ -358,19 +365,96 @@ int get_max_pcbs(void) {
 }
 
 static int do_spawn(const char *filename) {
-    (void) filename;
-    // TODO: Fill this in
-    return -1;
+    struct task_info ti;
+    Process process;
+    int i, pid = -1;
+
+    /* Look up the program in the ramdisk */
+    process = ramdisk_find(filename);
+    if (NULL == process) {
+        /* Unknown program: tell the shell "not found" */
+        return -1;
+    }
+
+    enter_critical();
+    /* Find an exited pcb to reuse */
+    for (i = 0; i < NUM_PCBS; ++i) {
+        if (EXITED == pcb[i].status) {
+            ti.entry_point = (uint32_t) process;
+            ti.task_type = PROCESS;
+            initialize_pcb(&pcb[i], i, &ti);
+            /* Mark runnable and put it in the ready queue */
+            pcb[i].status = READY;
+            total_ready_priority += pcb[i].priority;
+            queue_put(&ready_queue, (node_t *) &pcb[i]);
+            pid = i;
+            break;
+        }
+    }
+    leave_critical();
+
+    if (pid == -1) {
+        /* The process table is full */
+        return -2;
+    }
+    return pid;
 }
 
 static int do_kill(pid_t pid) {
-    (void) pid;
-    // TODO: Fill this in
-    return -1;
+    pcb_t *task;
+    int ret = -1;
+
+    if (pid < 0 || pid >= NUM_PCBS)
+        return -1;
+    task = &pcb[pid];
+
+    enter_critical();
+    if (EXITED != task->status) {
+        /* Wake every process waiting for this one in do_wait() */
+        notify_waiters(pid);
+
+        /* If the task is sitting in the ready queue, unlink it so the
+         * scheduler never dispatches it */
+        if (FIRST_TIME == task->status || READY == task->status) {
+            task->node.prev->next = task->node.next;
+            task->node.next->prev = task->node.prev;
+            task->node.next = task->node.prev = &task->node;
+            if (ENABLE_PRIORITIES)
+                total_ready_priority -= task->priority;
+        }
+
+        /* Blocked tasks stay in whatever queue they are parked in; the
+         * guards in scheduler()/try_wake() keep them from being dispatched
+         * once their status is EXITED */
+        task->status = EXITED;
+        ret = 0;
+    }
+    leave_critical();
+    return ret;
+}
+
+// Wake every process blocked in do_wait() for the given pid
+void notify_waiters(pid_t pid) {
+    pcb_t *waiter;
+
+    while (NULL != (waiter = (pcb_t *) queue_get(&wait_queues[pid])))
+        unblock(waiter);
 }
 
 static int do_wait(pid_t pid) {
-    (void) pid;
-    // TODO: Fill this in
-    return -1;
+    pcb_t *target;
+
+    if (pid < 0 || pid >= NUM_PCBS)
+        return -1;
+    target = &pcb[pid];
+
+    enter_critical();
+    /* Block until the target process has exited */
+    while (EXITED != target->status) {
+        current_running->status = BLOCKED;
+        queue_put(&wait_queues[pid], (node_t *) current_running);
+        scheduler_entry();
+    }
+    leave_critical();
+    return 0;
 }

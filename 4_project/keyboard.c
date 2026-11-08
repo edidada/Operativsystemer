@@ -253,8 +253,11 @@ void keyboard_interrupt(void) {
 static mbox_t keyboard_mbox;
 
 void keyboard_init(void) {
+    /* The keyboard is buffered by the mbox subsystem: keystrokes are
+     * stuffed into the "keyboard" mailbox by putchar() and can be picked
+     * up by any process that opens the same mailbox */
     keyboard_mbox = do_mbox_open( KEYBOARD_MBOX_NAME );
-    // TODO: Fill this in
+    ASSERT(keyboard_mbox >= 0);
 }
 
 // Phony input string
@@ -274,6 +277,8 @@ int do_getchar() {
 // Called by the keyboard interrupt (irq1) handler (through normal_handler) to
 // insert an ascii character in the keyboard queue
 static void putchar(struct character *c) {
-    (void) c;
-    // TODO: Fill this in
+    /* Buffer the whole character (ascii code, shift status, scancode) in
+     * the keyboard mailbox. As usual for typed input the buffer is large
+     * relative to the polling rate, so blocking sends here are harmless */
+    do_mbox_send(keyboard_mbox, (void *) c, sizeof(struct character));
 }
