@@ -258,31 +258,99 @@ static void shell_cd( void) {
 	writeStr("OK\n");
 }
 
+/* Build "dir/name" (or just "name") into 'path'; returns FALSE when
+ * the result does not fit */
+static int path_join( char *path, char *name ) {
+    int pi = 0, ni = 0;
+
+    if (argc > 1) {
+        for (ni = 0; argv[1][ni] != '\0' ; ++ni) {
+            if (pi >= MAX_PATH_NAME - 1)
+                return FALSE;
+            path[pi++] = argv[1][ni];
+        }
+        if (pi >= MAX_PATH_NAME - 1)
+            return FALSE;
+        path[pi++] = '/';
+    }
+    for (ni = 0; name[ni] != '\0'; ++ni) {
+        if (pi >= MAX_PATH_NAME - 1)
+            return FALSE;
+        path[pi++] = name[ni];
+    }
+    path[pi] = '\0';
+    return TRUE;
+}
+
 static void shell_ls( void) {
-    //should a system call print to the screen?
-  writeStr("Problem with ls\n");
+    char buf[256];
+    char path[MAX_PATH_NAME];
+    int fd, n, i, j, inode, size;
+    char name[MAX_FILE_NAME];
+    fileStat st;
 
-//Code/pseudocode you can use somewhere to get the same ls output as the tests
-//  writeStr("Name");
-//  print MAX_FILE_NAME - 3 spaces
-//  writeStr("Type");
-//  print 1 space
-//  writeStr("Inode");
-//  print 1 space
-//  writeStr("Size\n");
+    /* Header row, padded to line up with the entry rows */
+    writeStr("Name");
+    for (i = 0; i < MAX_FILE_NAME - 3; ++i)
+        writeChar(' ');
+    writeStr("Type");
+    writeChar(' ');
+    writeStr("Inode");
+    writeChar(' ');
+    writeStr("Size");
+    writeChar(RETURN);
 
+    /* Open the directory to list (default: the cwd) */
+    if (argc > 1)
+        fd = fs_open(argv[1], FS_O_RDONLY);
+    else
+        fd = fs_open(".", FS_O_RDONLY);
+    if (fd < 0) {
+        writeStr("Problem with ls\n");
+        return;
+    }
 
-//  writeStr(/*file name*/);
-//  print MAX_FILE_NAME - size of file name + 1 spaces
-//
-//  writeStr(/*condition*/ ? "D" : "F");
-//  print 4 spaces
-//
-//  writeInt(/*inode #*/);
-//  print 5 spaces
-//
-//  writeInt(/*file size*/);
-//  writeStr("\n");
+    /* The directory reads back as packed 36-byte dirent entries */
+    while ((n = fs_read(fd, buf, sizeof(buf))) > 0) {
+        for (i = 0; i + (int)sizeof(int) + MAX_FILE_NAME <= n;
+                i += (int)sizeof(int) + MAX_FILE_NAME) {
+            inode = *(int *)(&buf[i]);
+            if (inode <= 0)
+                continue;
+            for (j = 0; j < MAX_FILE_NAME; ++j)
+                name[j] = buf[i + (int)sizeof(int) + j];
+            name[MAX_FILE_NAME - 1] = '\0';
+
+            /* Fetch the entry's meta data */
+            size = 0;
+            if (path_join(path, name)) {
+                if (fs_stat(path, &st) == 0)
+                    size = st.size;
+                else
+                    continue;
+            } else if (fs_stat(name, &st) == 0) {
+                size = st.size;
+            } else {
+                continue;
+            }
+
+            /* Row: name, type (D/F), inode number, size */
+            writeStr(name);
+            for (j = strlen(name); j <= MAX_FILE_NAME - 2; ++j)
+                writeChar(' ');
+            writeStr((st.type == DIRECTORY) ? "D" : "F");
+            for (j = 0; j < 4; ++j)
+                writeChar(' ');
+            itoa(inode, name);
+            writeStr(name);
+            for (j = 0; j < 5; ++j)
+                writeChar(' ');
+            itoa(size, name);
+            writeStr(name);
+            writeChar(RETURN);
+        }
+    }
+    fs_close(fd);
 }
 
 static void shell_link( void) {

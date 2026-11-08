@@ -50,7 +50,7 @@ CCOPTS = -Wall -O1 -c -fno-builtin -fno-stack-protector -fno-defer-pop \
 #-Ttext X:				Use X as the starting address for the text segment of the output 
 #						file.
 
-LDOPTS = -melf_i386 -nostartfiles -nostdlib -Ttext
+LDOPTS = -melf_i386 -nostartfiles -nostdlib -N -Ttext
 
 # Add your user program here:
 USER_PROGRAMS	=	
@@ -76,7 +76,10 @@ KERNELOBJ	=	thread.o mbox.o keyboard.o interrupt.o $(COMMON) \
 PROCOBJ			=	$(COMMON) syslib.o
 
 # Makefile targets
-all: lnxsh
+# (the default builds the bootable OS image; 'lnxsh' builds the
+# development shell that runs the file system on the host against
+# blockFake.c)
+all: image
 
 bootable: bootblock createimage kernel floppy.img $(PROCESSES:.o=)
 
