@@ -1041,7 +1041,7 @@ int fs_rmdir(char *fileName)
     return -1;
   }
   /* Never remove the cwd or a directory above it */
-  if (cwd_inside(abs, cwd)) {
+  if (path_inside(abs, cwd)) {
     fs_leave();
     return -1;
   }
@@ -1101,7 +1101,7 @@ int fs_cd(char *dirName)
 
 int fs_link(char *old_fileName, char *new_fileName)
 {
-  int parent, target, oldino, newparent, newtarget;
+  int parent, target, newparent, newtarget;
   char name[MAX_FILE_NAME], abs[MAX_PATH_NAME];
   char newname[MAX_FILE_NAME], newabs[MAX_PATH_NAME];
   inode_t node;
