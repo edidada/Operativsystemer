@@ -1,0 +1,73 @@
+name: 编译并运行 Project 1
+
+on:
+  push:
+    branches:
+      - 'edidada/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          # 需要读取根提交 da04424 中未经改动的 createimage.given
+          fetch-depth: 0
+
+      - name: 安装 32 位编译与运行工具链
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib libc6-i386 lib32gcc-s1
+
+      - name: 定位 Project 1 目录
+        run: |
+          set -e
+          for d in cos318-project1 1_project; do
+            if [ -f "$d/Makefile" ]; then
+              echo "PROJ_DIR=$d" >> "$GITHUB_ENV"
+              echo "Project 1 目录: $d"
+              exit 0
+            fi
+          done
+          echo "::error::找不到 Project 1 目录"
+          exit 1
+
+      - name: 编译 bootblock / kernel / createimage
+        run: |
+          set -e
+          cd "$PROJ_DIR"
+          CFLAGS="-Wall -g -m32 -c -fomit-frame-pointer -O2 -fno-builtin"
+          gcc $CFLAGS bootblock.s -o bootblock.o
+          gcc $CFLAGS kernel.s   -o kernel.o
+          ld -nostartfiles -nostdlib -melf_i386 -Ttext 0x0    -o bootblock bootblock.o
+          ld -nostartfiles -nostdlib -melf_i386 -Ttext 0x1000 -o kernel    kernel.o
+          gcc -Wall -c -o createimage.o createimage.c
+          gcc -o createimage createimage.o
+          echo "编译完成："
+          file bootblock kernel createimage
+
+      - name: 运行 createimage 生成启动镜像
+        run: |
+          set -e
+          cd "$PROJ_DIR"
+          # 三个分支共用根提交 da04424，取其中未经改动的课程给定工具，
+          # 避免 Implementering1 里被覆盖过的 createimage.given 影响结果。
+          git show da04424:cos318-project1/createimage.given > /tmp/createimage.given
+          chmod +x /tmp/createimage.given
+          /tmp/createimage.given --extended ./bootblock ./kernel
+          ls -l ./image
+          test -s ./image
+          echo "image 大小: $(stat -c %s ./image) 字节"
+
+      - name: 校验引导扇区签名
+        run: |
+          set -e
+          cd "$PROJ_DIR"
+          size=$(stat -c %s ./image)
+          test $((size % 512)) -eq 0
+          sig=$(od -An -tx1 -j510 -N2 ./image | tr -d ' \n')
+          echo "引导扇区签名: 0x$sig"
+          test "$sig" = "55aa"
+          echo "编译运行成功"
