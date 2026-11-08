@@ -41,12 +41,12 @@ jobs:
           CFLAGS="-Wall -g -m32 -c -fomit-frame-pointer -O2 -fno-builtin"
           gcc $CFLAGS bootblock.s -o bootblock.o
           gcc $CFLAGS kernel.s   -o kernel.o
-          ld -nostartfiles -nostdlib -melf_i386 -Ttext 0x0    -o bootblock bootblock.o
-          ld -nostartfiles -nostdlib -melf_i386 -Ttext 0x1000 -o kernel    kernel.o
+          ld -melf_i386 -Ttext 0x0    -o bootblock bootblock.o
+          ld -melf_i386 -Ttext 0x1000 -o kernel    kernel.o
           gcc -Wall -c -o createimage.o createimage.c
           gcc -o createimage createimage.o
           echo "编译完成："
-          file bootblock kernel createimage
+          ls -l bootblock kernel createimage
 
       - name: 运行 createimage 生成启动镜像
         run: |
