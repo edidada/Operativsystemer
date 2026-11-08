@@ -2,7 +2,7 @@
  * COS 318, Fall 2019: Project 3 Preemptive Scheduler
  * Definitions and types of implementation of locks, condition variables,
  * semaphores, and barriers
- */ 
+ */
 
 #ifndef THREAD_H
 #define THREAD_H
@@ -19,14 +19,23 @@ typedef struct {
     pcb_t* held_task;
 } lock_t;
 
-// TODO: Define the condition_t structure
-typedef struct {} condition_t;
+/* Condition variable: threads blocked here wait for the next signal */
+typedef struct {
+    node_t wait_queue;
+} condition_t;
 
-// TODO: Define the semaphore_t structure
-typedef struct {} semaphore_t;
+/* Counting semaphore; value may be negative when waiters are queued */
+typedef struct {
+    int value;
+    node_t wait_queue;
+} semaphore_t;
 
-// TODO: Define the barrier_t structure
-typedef struct {} barrier_t;
+/* Barrier: n threads rendezvous before any of them may continue */
+typedef struct {
+    int n;              /* number of threads that must reach the barrier */
+    int arrived;        /* how many threads are currently at the barrier */
+    node_t wait_queue;
+} barrier_t;
 
 // Lock functions
 void lock_init(lock_t *);

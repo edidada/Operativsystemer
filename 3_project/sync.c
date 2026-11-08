@@ -94,30 +94,104 @@ void lock_release(lock_t * l) {
 }
 
 // TODO: Initialize a condition variable
-void condition_init(condition_t * c) {}
+void condition_init(condition_t * c) {
+    /* No critical section: initialization is the caller's responsibility */
+    queue_init(&c->wait_queue);
+}
 
 // TODO: Release lock m and block the thread enqueued on c; when unblocked,
 // re-acquire m
-void condition_wait(lock_t * m, condition_t * c) {}
+void condition_wait(lock_t * m, condition_t * c) {
+    enter_critical();
+    ASSERT(disable_count);
+
+    /* Put ourselves on the condition's wait queue and let go of the monitor
+     * lock while interrupts are still disabled (cpu-wise we never "sleep",
+     * the scheduler just switches to another task) */
+    current_running->status = BLOCKED;
+    enqueue(&c->wait_queue, (node_t *) current_running);
+    lock_release_helper(m);
+    scheduler_entry();
+
+    /* We only get here after being woken up by signal/broadcast */
+    leave_critical();
+    /* Re-acquire the monitor lock before continuing */
+    lock_acquire(m);
+}
 
 // TODO: Unblock the first thread waiting on c, if it exists
-void condition_signal(condition_t * c) {}
+void condition_signal(condition_t * c) {
+    enter_critical();
+    unblock_one(&c->wait_queue);
+    leave_critical();
+}
 
 // TODO: Unblock all threads waiting on c
-void condition_broadcast(condition_t * c) {}
+void condition_broadcast(condition_t * c) {
+    enter_critical();
+    unblock_all(&c->wait_queue);
+    leave_critical();
+}
 
 // TODO: Initialize a semaphore with the specified value >= 0
-void semaphore_init(semaphore_t * s, int value) {}
+void semaphore_init(semaphore_t * s, int value) {
+    /* No critical section: initialization is the caller's responsibility */
+    ASSERT(value >= 0);
+    s->value = value;
+    queue_init(&s->wait_queue);
+}
 
 // TODO: Increment the semaphore value atomically
-void semaphore_up(semaphore_t * s) {}
+void semaphore_up(semaphore_t * s) {
+    enter_critical();
+    ASSERT(disable_count);
+    s->value++;
+    /* Hand the token to the first waiter, if any */
+    if (s->value <= 0) {
+        unblock_one(&s->wait_queue);
+    }
+    leave_critical();
+}
 
 // TODO: Block until the semaphore value is greater than zero and decrement it
-void semaphore_down(semaphore_t * s) {}
+void semaphore_down(semaphore_t * s) {
+    enter_critical();
+    ASSERT(disable_count);
+    s->value--;
+    /* A negative value means we have to wait for an up() */
+    if (s->value < 0) {
+        current_running->status = BLOCKED;
+        enqueue(&s->wait_queue, (node_t *) current_running);
+        scheduler_entry();
+    }
+    leave_critical();
+}
 
 // TODO: Initialize a barrier where n is number of threads that rendezvous at the
 // barrier
-void barrier_init(barrier_t * b, int n) {}
+void barrier_init(barrier_t * b, int n) {
+    /* No critical section: initialization is the caller's responsibility */
+    b->n = n;
+    b->arrived = 0;
+    queue_init(&b->wait_queue);
+}
 
 // TODO: Block until all n threads have called barrier_wait
-void barrier_wait(barrier_t * b) {}
+void barrier_wait(barrier_t * b) {
+    enter_critical();
+    ASSERT(disable_count);
+
+    if (b->n == ++b->arrived) {
+        /* We are the last thread to arrive: reset the barrier and let
+         * everyone through */
+        b->arrived = 0;
+        unblock_all(&b->wait_queue);
+        leave_critical();
+    } else {
+        /* Wait at the barrier until the last thread arrives */
+        current_running->status = BLOCKED;
+        enqueue(&b->wait_queue, (node_t *) current_running);
+        scheduler_entry();
+        leave_critical();
+    }
+}

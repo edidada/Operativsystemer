@@ -17,13 +17,22 @@ node_t sleep_wait_queue;
 // More variables...
 volatile uint64_t time_elapsed;
 
+// Ordered insert into the sleeping queue: sort by wake-up deadline
+static int deadline_lte(node_t * a, node_t * b) {
+    return ((pcb_t *) a)->deadline <= ((pcb_t *) b)->deadline;
+}
+
 // TODO: Round-robin scheduling: Save current_running before preempting
-void put_current_running() {}
+void put_current_running() {
+    ASSERT(disable_count);
+    current_running->status = READY;
+    enqueue(&ready_queue, (node_t *) current_running);
+}
 
 // Change current_running to the next task
 void scheduler() {
     ASSERT(disable_count);
-    while (is_empty(&ready_queue)) {     
+    while (is_empty(&ready_queue)) {
         leave_critical();
         enter_critical();
     }
@@ -36,13 +45,40 @@ void scheduler() {
 void do_sleep(int milliseconds) {
   ASSERT(!disable_count);
   uint64_t deadline;
-  
+
   deadline = time_elapsed + milliseconds;
-  while (time_elapsed < deadline) {}
+
+  enter_critical();
+  current_running->status = BLOCKED;
+  current_running->deadline = deadline;
+  /* Ordered insert: the head of sleep_wait_queue always has the earliest
+   * deadline, so check_sleeping() only needs to inspect the front */
+  enqueue_sort(&sleep_wait_queue, (node_t *) current_running, deadline_lte);
+  scheduler_entry();
+  leave_critical();
 }
 
 // TODO: Check if we can wake up sleeping processes
-void check_sleeping() {}
+void check_sleeping() {
+  pcb_t *next;
+
+  /* Dequeues sleeping processes whose deadline has passed */
+  while (! is_empty(&sleep_wait_queue)) {
+    next = (pcb_t *) peek(&sleep_wait_queue);
+    if (next->deadline > time_elapsed) {
+      break;
+    }
+    (void) dequeue(&sleep_wait_queue);
+    unblock(next);
+  }
+}
+
+/* Yield without touching enter/leave critical: used by the timer interrupt
+ * which has already raised disable_count itself */
+void do_yield_naked() {
+  put_current_running();
+  scheduler_entry();
+}
 
 /* DO NOT MODIFY ANY OF THE FOLLOWING FUNCTIONS */
 

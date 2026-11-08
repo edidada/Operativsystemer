@@ -72,6 +72,11 @@
 
 # TODO START: Test current_running->nested_count, clobbering only eflags
 #define TEST_NESTED_COUNT \
+    movl    %eax, scratch; \
+    movl    current_running, %eax; \
+    movl    NESTED_COUNT(%eax), %eax; \
+    testl   %eax, %eax; \
+    movl    scratch, %eax
 # TODO END
     
 .data
@@ -126,19 +131,46 @@ syscall_entry:
 .globl  irq0_entry
 irq0_entry:
     SEND_EOI # Acknowledge the hardware interrupt
-    
+
     # Increment time_elapsed
+    pushl   %eax
+    pushl   %edx
+    movl    time_elapsed, %eax
+    movl    time_elapsed+4, %edx
+    addl    $1, %eax
+    adcl    $0, %edx
+    movl    %eax, time_elapsed
+    movl    %edx, time_elapsed+4
+    popl    %edx
+    popl    %eax
+
     # Increment disable_count to reflect the fact that interrupts are off
+    ENTER_CRITICAL
+
     # Test nested_count
-    
+    TEST_NESTED_COUNT
     jnz return # nested_count no zero, so do nothing
 
     # Do system call
- 
+    # We were interrupted while running a process: save its context, then
+    # jump up onto the kernel stack and yield (nested_count was bumped so the
+    # next timer interrupt knows not to preempt inside the kernel)
+    SAVE_CONTEXT(USER)
+    RESTORE_STACK(KERNEL)
+    movl    current_running, %eax
+    incl    NESTED_COUNT(%eax)
+    call    do_yield_naked
+    movl    current_running, %eax
+    decl    NESTED_COUNT(%eax)
+    SAVE_STACK(KERNEL)
+    RESTORE_CONTEXT(USER)
+
 return:
     # Check the sleeping processes and wake them up on time
+    call    check_sleeping
     # Decrement disable_count in anticipation of iret
-    
+    LEAVE_CRITICAL
+
     iret
 # TODO END
 
