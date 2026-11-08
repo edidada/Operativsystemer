@@ -41,8 +41,11 @@ jobs:
           CFLAGS="-Wall -g -m32 -c -fomit-frame-pointer -O2 -fno-builtin"
           gcc $CFLAGS bootblock.s -o bootblock.o
           gcc $CFLAGS kernel.s   -o kernel.o
-          ld -melf_i386 -Ttext 0x0    -o bootblock bootblock.o
-          ld -melf_i386 -Ttext 0x1000 -o kernel    kernel.o
+          # -N (--omagic) 关闭页对齐，生成单个 LOAD 段。现代 ld 默认
+          # -z separate-code 会产生多个 LOAD 段，2013 年的 createimage.given
+          # 会判定为 "memory conflict"。
+          ld -melf_i386 -N -Ttext 0x0    -o bootblock bootblock.o
+          ld -melf_i386 -N -Ttext 0x1000 -o kernel    kernel.o
           gcc -Wall -c -o createimage.o createimage.c
           gcc -o createimage createimage.o
           echo "编译完成："
